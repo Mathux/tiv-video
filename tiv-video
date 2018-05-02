@@ -17,9 +17,10 @@ def parse_args():
                         default="/usr/local/bin/tiv")
     parser.add_argument('-v', '--vid', dest='vid', help='video file')
     parser.add_argument('-s', '--speed', dest='speed',
-                        help='remove frames to speed up', default=SPEED_DEFAULT)
+                        help='remove frames to speed up',
+                        default=SPEED_DEFAULT)
     parser.add_argument('--tmp', dest='tmp',
-                        help='tmp file', default="/tmp/__tivid__.png")
+                        help='tmp file', default="/tmp/__tivid__.jpg")
     args = parser.parse_args()
 
     return args
@@ -62,11 +63,12 @@ if __name__ == '__main__':
     while(cap.isOpened()):
         # if keyboard.is_pressed('q'):
         #    break
-        _, frame = cap.read()
+        ret, frame = cap.read()
+        if not ret:
+            break
+
         if i % speed == 0:
             cv2.imwrite(tmp, frame)
             im = os.popen(tiv + " " + tmp).read()
             print_im(im)
         i += 1
-
-    clear()
