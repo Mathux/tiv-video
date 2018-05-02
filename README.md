@@ -6,7 +6,7 @@ I thanks a lot Stefan Haustein for his programm : https://github.com/stefanhaust
 ## Python dependencies
 - cv2
 - argparse
-- pynput
+- pynput (needed for the --ctrl mode)
 
 ### Installation
 ```bash
@@ -27,7 +27,19 @@ Follow this tutorial: https://github.com/stefanhaustein/TerminalImageViewer
 ## Usage 
 
 ```bash
-./tiv-video [-h] [-t TIV] [-v VID] [-s SPEED] [--tmp TMP]
+usage: tiv-video [-h] -v VID [-t TIV] [-s SPEED] [--tmp TMP] [--ctrl] 
+	             [--no-ctrl]
+
+required arguments:
+  -v VID, --vid VID     video file
+
+optional arguments:
+  -t TIV, --tiv TIV     tiv programm, default: /usr/local/bin/tiv
+  -s SPEED, --speed SPEED
+                        remove frames to speed up, default: 3
+  --tmp TMP             tmp file, default: /tmp/__tivid__.jpg
+  --ctrl                Add this argument to enable keyboard control (default)
+  --no-ctrl             Add this argument to disable keyboard control
 ```
 
 ## Control

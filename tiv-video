@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import sys
 import os
 import argparse
@@ -8,20 +7,36 @@ from pynput import keyboard
 from threading import Thread
 
 SPEED_DEFAULT = 3
+TIV_DEFAULT = "/usr/local/bin/tiv"
+TMP_FILE = "/tmp/__tivid__.jpg"
 
 
 def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(
         description='Read and show a video in a terminal')
-    parser.add_argument('-t', '--tiv', dest='tiv', help='tiv programm',
-                        default="/usr/local/bin/tiv")
-    parser.add_argument('-v', '--vid', dest='vid', help='video file')
-    parser.add_argument('-s', '--speed', dest='speed', type=int,
-                        help='remove frames to speed up',
-                        default=SPEED_DEFAULT)
-    parser.add_argument('--tmp', dest='tmp',
-                        help='tmp file', default="/tmp/__tivid__.jpg")
+
+    parser._action_groups.pop()
+    required = parser.add_argument_group('required arguments')
+    optional = parser.add_argument_group('optional arguments')
+
+    required.add_argument('-v', '--vid', dest='vid', help='video file',
+                          required=True)
+
+    optional.add_argument('-t', '--tiv', dest='tiv',
+                          help='tiv programm, default: '+TIV_DEFAULT,
+                          default=TIV_DEFAULT)
+    optional.add_argument('-s', '--speed', dest='speed', type=int,
+                          help='remove frames to speed up, default: ' +
+                          str(SPEED_DEFAULT),
+                          default=SPEED_DEFAULT)
+    optional.add_argument('--tmp', dest='tmp',
+                          help='tmp file, default: '+TMP_FILE, default=TMP_FILE)
+    optional.add_argument('--ctrl', dest='ctrl', action='store_true',
+                          help='Add this argument to enable keyboard control (default)')
+    optional.add_argument('--no-ctrl', dest='ctrl', action='store_false',
+                          help='Add this argument to disable keyboard control')
+    optional.set_defaults(ctrl=True)
     args = parser.parse_args()
 
     return args
@@ -141,14 +156,17 @@ if __name__ == '__main__':
 
     menu = Menu()
     vid = Video(args.vid, args.tiv, args.speed, args.tmp, menu)
-    ctrl = Controller(menu)
+
+    if args.ctrl:
+        ctrl = Controller(menu)
 
     vid.start()
-    ctrl.start()
+    if args.ctrl:
+        ctrl.start()
 
     vid.join()
 
-    k = keyboard.Controller()
-    k.press(keyboard.Key.esc)
-
-    ctrl.join()
+    if args.ctrl:
+        k = keyboard.Controller()
+        k.press(keyboard.Key.esc)
+        ctrl.join()
