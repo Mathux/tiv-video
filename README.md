@@ -6,11 +6,13 @@ I thanks a lot Stefan Haustein for his programm : https://github.com/stefanhaust
 ## Python dependencies
 - cv2
 - argparse
+- pynput
 
 ### Installation
 ```bash
-pip install cv2
-pip install argparse
+pip install --user cv2
+pip install --user argparse
+pip install --user pynput
 ```
 
 ## External dependencies
