@@ -1,0 +1,72 @@
+#!/usr/bin/env python
+
+import sys
+import os
+import argparse
+import cv2
+# import keyboard
+
+SPEED_DEFAULT = 3
+
+
+def parse_args():
+    """Parse input arguments."""
+    parser = argparse.ArgumentParser(
+        description='Read and show a video in a terminal')
+    parser.add_argument('-t', '--tiv', dest='tiv', help='tiv programm',
+                        default="/usr/local/bin/tiv")
+    parser.add_argument('-v', '--vid', dest='vid', help='video file')
+    parser.add_argument('-s', '--speed', dest='speed',
+                        help='remove frames to speed up', default=SPEED_DEFAULT)
+    parser.add_argument('--tmp', dest='tmp',
+                        help='tmp file', default="/tmp/__tivid__.png")
+    args = parser.parse_args()
+
+    return args
+
+
+def pint(s):
+    sys.stdout.write(s)
+    sys.stdout.flush()
+
+
+def clear():
+    pint("\033[H\033[J")
+
+
+def gotoxy(x, y):
+    s = "\033[%d;%dH" % (x, y)
+    pint(s)
+
+
+def print_im(im):
+    gotoxy(0, 0)
+    pint(im)
+
+
+if __name__ == '__main__':
+    args = parse_args()
+
+    if not args.vid:
+        raise IOError('Please put a video file')
+
+    vidname = args.vid
+    tmp = args.tmp
+    tiv = args.tiv
+    speed = int(args.speed)
+
+    cap = cv2.VideoCapture(vidname)
+    clear()
+
+    i = 0
+    while(cap.isOpened()):
+        # if keyboard.is_pressed('q'):
+        #    break
+        _, frame = cap.read()
+        if i % speed == 0:
+            cv2.imwrite(tmp, frame)
+            im = os.popen(tiv + " " + tmp).read()
+            print_im(im)
+        i += 1
+
+    clear()
