@@ -4,7 +4,8 @@ import sys
 import os
 import argparse
 import cv2
-# import keyboard
+from pynput import keyboard
+from threading import Thread
 
 SPEED_DEFAULT = 3
 
@@ -26,23 +27,110 @@ def parse_args():
     return args
 
 
-def pint(s):
-    sys.stdout.write(s)
-    sys.stdout.flush()
+class Menu():
+    """Thread to play the video."""
+
+    def __init__(self):
+        self.__stop = False
+        self.__pause = False
+
+    def stop(self):
+        self.__stop = True
+
+    def pause(self):
+        self.__pause = True
+
+    def resume(self):
+        self.__pause = False
+
+    def toggle(self):
+        self.__pause = not self.__pause
+
+    def needToStop(self):
+        return self.__stop
+
+    def isPlaying(self):
+        return not self.__pause  # and not self.__stop
 
 
-def clear():
-    pint("\033[H\033[J")
+class Video(Thread):
+    """Thread to play the video."""
+
+    def __init__(self, vidname, tiv, speed, tmp, menu):
+        Thread.__init__(self)
+        self.vidname = vidname
+        self.tiv = tiv
+        self.speed = speed
+        self.tmp = tmp
+        self.menu = menu
+
+    @staticmethod
+    def pint(s):
+        sys.stdout.write(s)
+        sys.stdout.flush()
+
+    @staticmethod
+    def clear():
+        Video.pint("\033[H\033[J")
+
+    @staticmethod
+    def gotoxy(x, y):
+        s = "\033[%d;%dH" % (x, y)
+        Video.pint(s)
+
+    @staticmethod
+    def print_im(im):
+        Video.gotoxy(0, 0)
+        Video.pint(im)
+
+    def run(self):
+        cap = cv2.VideoCapture(self.vidname)
+        self.clear()
+        i = -1
+        while(not menu.needToStop() and cap.isOpened()):
+            if menu.isPlaying():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                i += 1
+                if i % self.speed == 0:
+                    cv2.imwrite(self.tmp, frame)
+                    im = os.popen(self.tiv + " " + self.tmp).read()
+                    Video.print_im(im)
+        self.clear()
 
 
-def gotoxy(x, y):
-    s = "\033[%d;%dH" % (x, y)
-    pint(s)
+class Controller(Thread):
+    """Thread to control the video."""
 
+    def __init__(self, menu):
+        Thread.__init__(self)
+        self.menu = menu
+        self.canToggle = True
 
-def print_im(im):
-    gotoxy(0, 0)
-    pint(im)
+    def on_press(self, key):
+        if key in [keyboard.Key.esc, keyboard.KeyCode.from_char('q')]:
+            self.menu.stop()
+            return False
+        elif key in [keyboard.Key.space]:
+            if self.canToggle:
+                self.menu.toggle()
+                self.canToggle = False
+        return True
+
+    def on_release(self, key):
+        if key in [keyboard.Key.space]:
+            self.canToggle = True
+        return True
+
+    def stop(self):
+        keyboard.Listener.stop(self.listener)
+
+    def run(self):
+        with keyboard.Listener(
+                on_press=self.on_press,
+                on_release=self.on_release) as self.listener:
+            self.listener.join()
 
 
 if __name__ == '__main__':
@@ -51,24 +139,16 @@ if __name__ == '__main__':
     if not args.vid:
         raise IOError('Please put a video file')
 
-    vidname = args.vid
-    tmp = args.tmp
-    tiv = args.tiv
-    speed = int(args.speed)
+    menu = Menu()
+    vid = Video(args.vid, args.tiv, args.speed, args.tmp, menu)
+    ctrl = Controller(menu)
 
-    cap = cv2.VideoCapture(vidname)
-    clear()
+    vid.start()
+    ctrl.start()
 
-    i = 0
-    while(cap.isOpened()):
-        # if keyboard.is_pressed('q'):
-        #    break
-        ret, frame = cap.read()
-        if not ret:
-            break
+    vid.join()
 
-        if i % speed == 0:
-            cv2.imwrite(tmp, frame)
-            im = os.popen(tiv + " " + tmp).read()
-            print_im(im)
-        i += 1
+    k = keyboard.Controller()
+    k.press(keyboard.Key.esc)
+
+    ctrl.join()
