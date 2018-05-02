@@ -16,7 +16,7 @@ def parse_args():
     parser.add_argument('-t', '--tiv', dest='tiv', help='tiv programm',
                         default="/usr/local/bin/tiv")
     parser.add_argument('-v', '--vid', dest='vid', help='video file')
-    parser.add_argument('-s', '--speed', dest='speed',
+    parser.add_argument('-s', '--speed', dest='speed', type=int,
                         help='remove frames to speed up',
                         default=SPEED_DEFAULT)
     parser.add_argument('--tmp', dest='tmp',
