@@ -54,7 +54,7 @@ if __name__ == '__main__':
     vidname = args.vid
     tmp = args.tmp
     tiv = args.tiv
-    speed = int(args.speed)
+    speed = args.speed
 
     cap = cv2.VideoCapture(vidname)
     clear()
