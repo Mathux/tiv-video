@@ -1,11 +1,18 @@
 #!/usr/bin/env python
 import sys
-import os
-import argparse
 import cv2
-from pynput import keyboard
+import argparse
+import os
 from threading import Thread
 from subprocess import Popen, PIPE
+from Xlib import error
+
+try:
+    from pynput import keyboard
+    CTRL_MODE_DEFAULT = True
+except (ImportError, error.DisplayNameError):
+    CTRL_MODE_DEFAULT = False
+
 
 SPEED_DEFAULT = 3
 TIV_DEFAULT = "/usr/local/bin/tiv"
@@ -32,14 +39,19 @@ def parse_args():
                           str(SPEED_DEFAULT),
                           default=SPEED_DEFAULT)
     optional.add_argument('--tmp', dest='tmp',
-                          help='tmp file, default: '+TMP_FILE, default=TMP_FILE)
+                          help='tmp file, default: '+TMP_FILE,
+                          default=TMP_FILE)
     optional.add_argument('--ctrl', dest='ctrl', action='store_true',
                           help='Add this argument to enable keyboard control (default)')
     optional.add_argument('--no-ctrl', dest='ctrl', action='store_false',
                           help='Add this argument to disable keyboard control')
-    optional.set_defaults(ctrl=True)
-    args = parser.parse_args()
+    optional.set_defaults(ctrl=CTRL_MODE_DEFAULT)
 
+    optional.add_argument('--sys-mode', dest='sysmode', action='store_true',
+                          help='If it is not working try with this mode')
+    optional.set_defaults(sysmode=False)
+
+    args = parser.parse_args()
     return args
 
 
@@ -87,7 +99,8 @@ class Video(Thread):
 
     @staticmethod
     def clear():
-        Video.pint("\033[H\033[J")
+        # Video.pint("\033[H\033[J")
+        os.system("clear")
 
     @staticmethod
     def gotoxy(x, y):
@@ -111,10 +124,14 @@ class Video(Thread):
                 i += 1
                 if i % self.speed == 0:
                     cv2.imwrite(self.tmp, frame)
-                    cmd = self.tiv + " " + self.tmp
-                    proc = Popen(cmd, shell=True, stdout=PIPE)
-                    im = proc.stdout.read()
-                    Video.print_im(im)
+                    if args.sysmode:
+                        Video.gotoxy(0, 0)
+                        os.system(self.tiv + " " + self.tmp)
+                    else:
+                        proc = Popen([self.tiv, self.tmp], stdout=PIPE)
+                        im = proc.stdout.read()
+                        Video.print_im(im)
+
         self.clear()
 
 
