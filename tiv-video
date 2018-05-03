@@ -42,13 +42,13 @@ def parse_args():
                           help='tmp file, default: '+TMP_FILE,
                           default=TMP_FILE)
     optional.add_argument('--ctrl', dest='ctrl', action='store_true',
-                          help='Add this argument to enable keyboard control (default)')
+                          help='add this argument to enable keyboard control (default)')
     optional.add_argument('--no-ctrl', dest='ctrl', action='store_false',
-                          help='Add this argument to disable keyboard control')
+                          help='add this argument to disable keyboard control')
     optional.set_defaults(ctrl=CTRL_MODE_DEFAULT)
 
     optional.add_argument('--sys-mode', dest='sysmode', action='store_true',
-                          help='If it is not working try with this mode')
+                          help='if it is not working try with this mode')
     optional.set_defaults(sysmode=False)
 
     args = parser.parse_args()
