@@ -3,14 +3,14 @@ import sys
 import cv2
 import argparse
 import os
-from threading import Thread
+#from threading import Thread
+import multiprocessing
 from subprocess import Popen, PIPE
-from Xlib import error
 
 try:
-    from pynput import keyboard
+    import getch
     CTRL_MODE_DEFAULT = True
-except (ImportError, error.DisplayNameError):
+except ImportError:
     CTRL_MODE_DEFAULT = False
 
 
@@ -81,11 +81,11 @@ class Menu():
         return not self.__pause  # and not self.__stop
 
 
-class Video(Thread):
+class Video(multiprocessing.Process):
     """Thread to play the video."""
 
     def __init__(self, vidname, tiv, speed, tmp, menu):
-        Thread.__init__(self)
+        multiprocessing.Process.__init__(self)
         self.vidname = vidname
         self.tiv = tiv
         self.speed = speed
@@ -135,37 +135,33 @@ class Video(Thread):
         self.clear()
 
 
-class Controller(Thread):
+class Controller(multiprocessing.Process):
     """Thread to control the video."""
 
     def __init__(self, menu):
-        Thread.__init__(self)
+        multiprocessing.Process.__init__(self)
         self.menu = menu
         self.canToggle = True
+        self.kill = False
+        self.menu.stop()
 
-    def on_press(self, key):
-        if key in [keyboard.Key.esc, keyboard.KeyCode.from_char('q')]:
+    def process_char(self, key):
+        if key in ['\x1b', 'q']:
             self.menu.stop()
-            return False
-        elif key in [keyboard.Key.space]:
-            if self.canToggle:
-                self.menu.toggle()
-                self.canToggle = False
-        return True
+            self.kill = True
 
-    def on_release(self, key):
-        if key in [keyboard.Key.space]:
+        elif key in [' ']:
+            self.menu.toggle()
+            self.canToggle = False
+
+        else:
             self.canToggle = True
-        return True
-
-    def stop(self):
-        keyboard.Listener.stop(self.listener)
 
     def run(self):
-        with keyboard.Listener(
-                on_press=self.on_press,
-                on_release=self.on_release) as self.listener:
-            self.listener.join()
+        self.menu.stop()
+        while not self.kill:
+            char = getch.getch()
+            self.process_char(char)
 
 
 if __name__ == '__main__':
@@ -176,17 +172,12 @@ if __name__ == '__main__':
 
     menu = Menu()
     vid = Video(args.vid, args.tiv, args.speed, args.tmp, menu)
-
     if args.ctrl:
         ctrl = Controller(menu)
-
-    vid.start()
-    if args.ctrl:
         ctrl.start()
 
+    vid.start()
     vid.join()
 
     if args.ctrl:
-        k = keyboard.Controller()
-        k.press(keyboard.Key.esc)
         ctrl.join()
