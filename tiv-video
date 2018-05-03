@@ -5,6 +5,7 @@ import argparse
 import cv2
 from pynput import keyboard
 from threading import Thread
+from subprocess import Popen, PIPE
 
 SPEED_DEFAULT = 3
 TIV_DEFAULT = "/usr/local/bin/tiv"
@@ -43,7 +44,7 @@ def parse_args():
 
 
 class Menu():
-    """Thread to play the video."""
+    """Menu controller, this is used by the 2 threads"""
 
     def __init__(self):
         self.__stop = False
@@ -110,7 +111,9 @@ class Video(Thread):
                 i += 1
                 if i % self.speed == 0:
                     cv2.imwrite(self.tmp, frame)
-                    im = os.popen(self.tiv + " " + self.tmp).read()
+                    cmd = self.tiv + " " + self.tmp
+                    proc = Popen(cmd, shell=True, stdout=PIPE)
+                    im = proc.stdout.read()
                     Video.print_im(im)
         self.clear()
 
