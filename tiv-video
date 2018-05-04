@@ -3,17 +3,13 @@ import sys
 import cv2
 import argparse
 import os
-#from threading import Thread
-import multiprocessing
 from subprocess import Popen, PIPE
-
-try:
-    import getch
-    CTRL_MODE_DEFAULT = True
-except ImportError:
-    CTRL_MODE_DEFAULT = False
+from threading import Thread
+import tty
+import termios
 
 
+CTRL_MODE_DEFAULT = True
 SPEED_DEFAULT = 3
 TIV_DEFAULT = "/usr/local/bin/tiv"
 TMP_FILE = "/tmp/__tivid__.jpg"
@@ -81,11 +77,11 @@ class Menu():
         return not self.__pause  # and not self.__stop
 
 
-class Video(multiprocessing.Process):
+class Video(Thread):
     """Thread to play the video."""
 
     def __init__(self, vidname, tiv, speed, tmp, menu):
-        multiprocessing.Process.__init__(self)
+        Thread.__init__(self)
         self.vidname = vidname
         self.tiv = tiv
         self.speed = speed
@@ -112,6 +108,16 @@ class Video(multiprocessing.Process):
         Video.gotoxy(0, 0)
         Video.pint(im)
 
+    @staticmethod
+    def cmd_and_print(t, i):
+        if args.sysmode:
+            Video.gotoxy(0, 0)
+            os.system(t + " " + i)
+        else:
+            proc = Popen([t, i], stdout=PIPE)
+            im = proc.stdout.read()
+            Video.print_im(im)
+
     def run(self):
         cap = cv2.VideoCapture(self.vidname)
         self.clear()
@@ -120,30 +126,32 @@ class Video(multiprocessing.Process):
             if menu.isPlaying():
                 ret, frame = cap.read()
                 if not ret:
+                    menu.stop()
                     break
                 i += 1
                 if i % self.speed == 0:
                     cv2.imwrite(self.tmp, frame)
-                    if args.sysmode:
-                        Video.gotoxy(0, 0)
-                        os.system(self.tiv + " " + self.tmp)
-                    else:
-                        proc = Popen([self.tiv, self.tmp], stdout=PIPE)
-                        im = proc.stdout.read()
-                        Video.print_im(im)
-
-        self.clear()
+                    Video.cmd_and_print(self.tiv, self.tmp)
 
 
-class Controller(multiprocessing.Process):
-    """Thread to control the video."""
+def readchar():
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(sys.stdin.fileno())
+        ch = sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return ch
+
+
+class Controller():
+    """Control the video."""
 
     def __init__(self, menu):
-        multiprocessing.Process.__init__(self)
         self.menu = menu
         self.canToggle = True
         self.kill = False
-        self.menu.stop()
 
     def process_char(self, key):
         if key in ['\x1b', 'q']:
@@ -158,9 +166,8 @@ class Controller(multiprocessing.Process):
             self.canToggle = True
 
     def run(self):
-        self.menu.stop()
-        while not self.kill:
-            char = getch.getch()
+        while not self.kill and not self.menu.needToStop():
+            char = readchar()
             self.process_char(char)
 
 
@@ -172,12 +179,10 @@ if __name__ == '__main__':
 
     menu = Menu()
     vid = Video(args.vid, args.tiv, args.speed, args.tmp, menu)
+    vid.start()
+
     if args.ctrl:
         ctrl = Controller(menu)
-        ctrl.start()
+        ctrl.run()
 
-    vid.start()
     vid.join()
-
-    if args.ctrl:
-        ctrl.join()

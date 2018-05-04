@@ -6,15 +6,12 @@ I thanks a lot Stefan Haustein for his programm : https://github.com/stefanhaust
 ## Python dependencies
 - cv2
 - argparse
-- [Will be deleted] pynput (needed for the --ctrl mode)
-- getch
+
 
 ### Installation for python 2
 ```bash
 pip install --user cv2
 pip install --user argparse
-[Will be deleted] pip install --user pynput
-pip install --user "https://pypi.python.org/packages/source/g/getch/getch-1.0-python2.tar.gz#md5=586ea0f1f16aa094ff6a30736ba03c50"
 ```
 
 ## External dependencies
@@ -53,9 +50,6 @@ optional arguments:
 
 ## TODO/NOTE
 
-Be careful, for now: all your input are given to your shell after the execution of this programm. 
-
-- Fix this annoying problem
 - Add more features
   - Play, pause logo. 
   - Change speed in Runtime
