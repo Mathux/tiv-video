@@ -8,6 +8,7 @@ from threading import Thread
 import tty
 import termios
 
+import paste
 
 CTRL_MODE_DEFAULT = True
 SPEED_DEFAULT = 3
@@ -76,6 +77,9 @@ class Menu():
     def isPlaying(self):
         return not self.__pause  # and not self.__stop
 
+    def isPausing(self):
+        return self.__pause
+
 
 class Video(Thread):
     """Thread to play the video."""
@@ -87,6 +91,7 @@ class Video(Thread):
         self.speed = speed
         self.tmp = tmp
         self.menu = menu
+        self.icons = []
 
     @staticmethod
     def pint(s):
@@ -118,20 +123,37 @@ class Video(Thread):
             im = proc.stdout.read()
             Video.print_im(im)
 
+    def set_icon(self, icon, num=5):
+        self.icons = []
+        for _ in range(num):
+            self.icons.append(icon)
+
+    def get_icon(self):
+        if len(self.icons) == 0:
+            return -1
+        else:
+            return self.icons.pop(0)
+
     def run(self):
         cap = cv2.VideoCapture(self.vidname)
         self.clear()
-        i = -1
+        i = 0
+        ret, frame = cap.read()
         while(not menu.needToStop() and cap.isOpened()):
             if menu.isPlaying():
-                ret, frame = cap.read()
                 if not ret:
                     menu.stop()
                     break
                 i += 1
                 if i % self.speed == 0:
                     cv2.imwrite(self.tmp, frame)
+                    paste.paste_icon(self.tmp, self.get_icon(), self.tmp)
                     Video.cmd_and_print(self.tiv, self.tmp)
+                ret, frame = cap.read()
+            elif menu.isPausing():
+                cv2.imwrite(self.tmp, frame)
+                paste.paste_icon(self.tmp, self.get_icon(), self.tmp)
+                Video.cmd_and_print(self.tiv, self.tmp)
 
 
 def readchar():
@@ -148,10 +170,10 @@ def readchar():
 class Controller():
     """Control the video."""
 
-    def __init__(self, menu):
+    def __init__(self, menu, vid):
         self.menu = menu
-        self.canToggle = True
         self.kill = False
+        self.vid = vid
 
     def process_char(self, key):
         if key in ['\x1b', 'q']:
@@ -160,10 +182,10 @@ class Controller():
 
         elif key in [' ']:
             self.menu.toggle()
-            self.canToggle = False
-
-        else:
-            self.canToggle = True
+            if menu.isPausing():
+                self.vid.set_icon("pause")
+            else:
+                self.vid.set_icon("play")
 
     def run(self):
         while not self.kill and not self.menu.needToStop():
@@ -182,7 +204,7 @@ if __name__ == '__main__':
     vid.start()
 
     if args.ctrl:
-        ctrl = Controller(menu)
+        ctrl = Controller(menu, vid)
         ctrl.run()
 
     vid.join()
