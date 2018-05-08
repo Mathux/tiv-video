@@ -7,42 +7,30 @@ from subprocess import Popen, PIPE
 from threading import Thread
 import tty
 import termios
-
-import paste
-
-CTRL_MODE_DEFAULT = True
-SPEED_DEFAULT = 3
-TIV_DEFAULT = "/usr/local/bin/tiv"
-TMP_FILE = "/tmp/__tivid__.jpg"
+import time
+from paste import paste_icon
+from math import ceil
+import config
 
 
 def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(
-        description='Read and show a video in a terminal')
+        description='Read and show a video in a terminal,\
+        default args in config.py')
 
     parser._action_groups.pop()
     required = parser.add_argument_group('required arguments')
     optional = parser.add_argument_group('optional arguments')
 
-    required.add_argument('-v', '--vid', dest='vid', help='video file',
-                          required=True)
+    required.add_argument('vid', help='video file')
 
-    optional.add_argument('-t', '--tiv', dest='tiv',
-                          help='tiv programm, default: '+TIV_DEFAULT,
-                          default=TIV_DEFAULT)
-    optional.add_argument('-s', '--speed', dest='speed', type=int,
-                          help='remove frames to speed up, default: ' +
-                          str(SPEED_DEFAULT),
-                          default=SPEED_DEFAULT)
+    optional.add_argument('--tiv', dest='tiv',
+                          help='tiv programm, default: '+config.TIV_DEFAULT,
+                          default=config.TIV_DEFAULT)
     optional.add_argument('--tmp', dest='tmp',
-                          help='tmp file, default: '+TMP_FILE,
-                          default=TMP_FILE)
-    optional.add_argument('--ctrl', dest='ctrl', action='store_true',
-                          help='add this argument to enable keyboard control (default)')
-    optional.add_argument('--no-ctrl', dest='ctrl', action='store_false',
-                          help='add this argument to disable keyboard control')
-    optional.set_defaults(ctrl=CTRL_MODE_DEFAULT)
+                          help='tmp file, default: '+config.TMP_FILE,
+                          default=config.TMP_FILE)
 
     optional.add_argument('--sys-mode', dest='sysmode', action='store_true',
                           help='if it is not working try with this mode')
@@ -84,14 +72,17 @@ class Menu():
 class Video(Thread):
     """Thread to play the video."""
 
-    def __init__(self, vidname, tiv, speed, tmp, menu):
+    def __init__(self, vidname, tiv, tmp, menu):
         Thread.__init__(self)
         self.vidname = vidname
         self.tiv = tiv
-        self.speed = speed
         self.tmp = tmp
         self.menu = menu
         self.icons = []
+        self.ix = 0
+        self.iy = 0
+        self.fast = 1
+        self.wait = 0
 
     @staticmethod
     def pint(s):
@@ -123,10 +114,19 @@ class Video(Thread):
             im = proc.stdout.read()
             Video.print_im(im)
 
+    @staticmethod
+    def show_frame(tmp, frame, icon, tiv, x, y):
+        cv2.imwrite(tmp, frame)
+        paste_icon(tmp, icon, tmp, x, y)
+        Video.cmd_and_print(tiv, tmp)
+
     def set_icon(self, icon, num=5):
         self.icons = []
         for _ in range(num):
             self.icons.append(icon)
+
+    def reset_icon(self):
+        self.icons = []
 
     def get_icon(self):
         if len(self.icons) == 0:
@@ -134,26 +134,51 @@ class Video(Thread):
         else:
             return self.icons.pop(0)
 
+    @staticmethod
+    def get_fps(cap):
+        (major_ver, minor_ver, subminor_ver) = (cv2.__version__).split('.')
+        if int(major_ver) < 3:
+            fps = cap.get(cv2.cv.CV_CAP_PROP_FPS)
+        else:
+            fps = cap.get(cv2.CAP_PROP_FPS)
+        return fps
+
+    def show_frame_speed_wait(self, frame, fps):
+        time.sleep(self.wait)
+        start = time.time()
+        Video.show_frame(self.tmp, frame, self.get_icon(),
+                         self.tiv, self.ix, self.iy)
+        end = time.time()
+        elapse = end - start
+
+        self.speed = ceil(fps * elapse)
+        # 0.8 is experimental but it works well
+        self.wait = (self.speed/fps - elapse)*0.8
+
     def run(self):
         cap = cv2.VideoCapture(self.vidname)
         self.clear()
-        i = 0
         ret, frame = cap.read()
+        height, weight, _ = frame.shape
+        self.ix = weight/2 - config.LOGO_WIDTH/2
+        self.iy = height/2 - config.LOGO_HEIGHT/2
+        fps = Video.get_fps(cap)
+
+        self.show_frame_speed_wait(frame, fps)
+
+        i = 0
         while(not menu.needToStop() and cap.isOpened()):
             if menu.isPlaying():
                 if not ret:
                     menu.stop()
                     break
                 i += 1
-                if i % self.speed == 0:
-                    cv2.imwrite(self.tmp, frame)
-                    paste.paste_icon(self.tmp, self.get_icon(), self.tmp)
-                    Video.cmd_and_print(self.tiv, self.tmp)
+                if i % (self.speed*self.fast) == 0:
+                    self.show_frame_speed_wait(frame, fps)
                 ret, frame = cap.read()
             elif menu.isPausing():
-                cv2.imwrite(self.tmp, frame)
-                paste.paste_icon(self.tmp, self.get_icon(), self.tmp)
-                Video.cmd_and_print(self.tiv, self.tmp)
+                self.set_icon("pause", num=1)
+                self.show_frame_speed_wait(frame, fps)
 
 
 def readchar():
@@ -176,16 +201,36 @@ class Controller():
         self.vid = vid
 
     def process_char(self, key):
-        if key in ['\x1b', 'q']:
+        if key in ['q']:
             self.menu.stop()
             self.kill = True
 
         elif key in [' ']:
             self.menu.toggle()
             if menu.isPausing():
-                self.vid.set_icon("pause")
+                self.vid.set_icon("pause", num=1)
             else:
                 self.vid.set_icon("play")
+
+        elif key == '\x1b':
+            first = readchar()
+            if first != '[':
+                return self.process_char(first)
+
+            letter = readchar()
+            if letter == 'C':
+                self.vid.set_icon("fast", num=2)
+                self.vid.fast *= 2
+            elif letter == 'D':
+                self.vid.set_icon("rewind", num=2)
+                self.vid.fast = 1
+            else:
+                return True
+
+        else:
+            self.vid.reset_icon()
+            self.vid.fast = 1
+        return True
 
     def run(self):
         while not self.kill and not self.menu.needToStop():
@@ -200,11 +245,10 @@ if __name__ == '__main__':
         raise IOError('Please put a video file')
 
     menu = Menu()
-    vid = Video(args.vid, args.tiv, args.speed, args.tmp, menu)
+    vid = Video(args.vid, args.tiv, args.tmp, menu)
     vid.start()
 
-    if args.ctrl:
-        ctrl = Controller(menu, vid)
-        ctrl.run()
+    ctrl = Controller(menu, vid)
+    ctrl.run()
 
     vid.join()

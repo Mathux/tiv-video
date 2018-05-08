@@ -2,7 +2,7 @@ import cv2
 import argparse
 
 
-CHOICE = ["play", "pause", "fast", "left", "right"]
+CHOICE = ["play", "pause", "fast", "left", "right", "rewind"]
 DIC = {}
 for x in CHOICE:
     DIC[x] = "icons/" + x + ".png"

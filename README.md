@@ -26,27 +26,27 @@ Follow this tutorial: https://github.com/stefanhaustein/TerminalImageViewer
 ## Usage 
 
 ```bash
-usage: tiv-video [-h] -v VID [-t TIV] [-s SPEED] [--tmp TMP] [--ctrl]
-                 [--no-ctrl] [--sys-mode]
+usage: tiv-video [-h] [--tiv TIV] [--tmp TMP] [--sys-mode] vid
 
-Read and show a video in a terminal
+Read and show a video in a terminal, default args in config.py
 
 required arguments:
-  -v VID, --vid VID     video file
+  vid         video file
 
 optional arguments:
--t TIV, --tiv TIV     tiv programm, default: /usr/local/bin/tiv
--s SPEED, --speed SPEED remove frames to speed up, default: 3
---tmp TMP             tmp file, default: /tmp/__tivid__.jpg
---ctrl                add this argument to enable keyboard control (default)
---no-ctrl             add this argument to disable keyboard control
---sys-mode            if it is not working try with this mode
+  --tiv TIV   tiv programm, default: /usr/local/bin/tiv
+  --tmp TMP   tmp file, default: /tmp/__tivid__.jpg
+  --sys-mode  if it is not working try with this mode
 ```
 
 ## Control
 
 - Press **space** to **play**/**pause**
 - Press **q** or **esc** to quit
+- *Experimental*: 
+  - Press **right arrow** to speed up x2
+  - Press **left arrow** to put the normal speed
+
 
 ## TODO/NOTE
 
