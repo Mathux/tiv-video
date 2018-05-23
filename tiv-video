@@ -23,7 +23,7 @@ def parse_args():
     required = parser.add_argument_group('required arguments')
     optional = parser.add_argument_group('optional arguments')
 
-    required.add_argument('vid', help='video file')
+    required.add_argument('vid', help='video file or directory')
 
     optional.add_argument('--tiv', dest='tiv',
                           help='tiv programm, default: '+config.TIV_DEFAULT,
@@ -31,10 +31,13 @@ def parse_args():
     optional.add_argument('--tmp', dest='tmp',
                           help='tmp file, default: '+config.TMP_FILE,
                           default=config.TMP_FILE)
-
     optional.add_argument('--sys-mode', dest='sysmode', action='store_true',
                           help='if it is not working try with this mode')
     optional.set_defaults(sysmode=False)
+
+    optional.add_argument('--fps', dest='fps',
+                          help='FPS for folder with images, default: ' + str(config.FPS_IMAGES),
+                          default=config.FPS_IMAGES)
 
     args = parser.parse_args()
     return args
@@ -69,7 +72,80 @@ class Menu():
         return self.__pause
 
 
-class Video(Thread):
+class Video():
+    """ General class to load/back etc on a video"""
+    def __init__(self, vidname):
+        self.vidname = vidname
+
+    def init_frame(self):
+        pass
+
+    def get_frame(self):
+        pass
+
+    def load(self):
+        pass
+
+    def has_frame(self):
+        pass
+
+
+class VideoMP4(Video):
+    """Class to load/back a mp4 video"""
+    def __init__(self, vidname):
+        Video.__init__(self, vidname)
+        self.cap = cv2.VideoCapture(self.vidname)
+        self.ret = True
+
+    def init_frame(self):
+        self.ret, self.actualframe = self.cap.read()
+        height, width, _ = self.actualframe.shape
+        fps = VideoManager.get_fps(self.cap)
+        return height, width, fps
+
+    def get_frame(self):
+        return self.actualframe
+
+    def load_frame(self):
+        if self.ret:
+            self.ret, self.actualframe = self.cap.read()
+        return self.ret
+
+    def has_frame(self):
+        return self.ret
+
+
+class VideoImages(Video):
+    """Class to load/back a videos from images frame"""
+    def __init__(self, vidname):
+        Video.__init__(self, vidname)
+        self.frames = os.listdir(self.vidname)
+        self.frames.sort(key=lambda x: int(x.split('.')[0]))
+        self.frames = [os.path.join(self.vidname, x) for x in self.frames]
+        self.numframe = len(self.frames)
+        self.ind = 0
+
+    def init_frame(self):
+        self.actualframe = cv2.imread(self.frames[self.ind])
+        height, width, _ = self.actualframe.shape
+        return height, width, args.fps
+
+    def get_frame(self):
+        return self.actualframe
+
+    def load_frame(self):
+        if self.ind < self.numframe - 1:
+            self.ind += 1
+            self.actualframe = cv2.imread(self.frames[self.ind])
+            return True
+        else:
+            return False
+
+    def has_frame(self):
+        return self.ind < self.numframe
+
+
+class VideoManager(Thread):
     """Thread to play the video."""
 
     def __init__(self, vidname, tiv, tmp, menu):
@@ -91,34 +167,34 @@ class Video(Thread):
 
     @staticmethod
     def clear():
-        # Video.pint("\033[H\033[J")
+        # VideoManager.pint("\033[H\033[J")
         os.system("clear")
 
     @staticmethod
     def gotoxy(x, y):
         s = "\033[%d;%dH" % (x, y)
-        Video.pint(s)
+        VideoManager.pint(s)
 
     @staticmethod
     def print_im(im):
-        Video.gotoxy(0, 0)
-        Video.pint(im)
+        VideoManager.gotoxy(0, 0)
+        VideoManager.pint(im)
 
     @staticmethod
     def cmd_and_print(t, i):
         if args.sysmode:
-            Video.gotoxy(0, 0)
+            VideoManager.gotoxy(0, 0)
             os.system(t + " " + i)
         else:
             proc = Popen([t, i], stdout=PIPE)
             im = proc.stdout.read()
-            Video.print_im(im)
+            VideoManager.print_im(im)
 
     @staticmethod
     def show_frame(tmp, frame, icon, tiv, x, y):
         cv2.imwrite(tmp, frame)
         paste_icon(tmp, icon, tmp, x, y)
-        Video.cmd_and_print(tiv, tmp)
+        VideoManager.cmd_and_print(tiv, tmp)
 
     def set_icon(self, icon, num=5):
         self.icons = []
@@ -134,6 +210,10 @@ class Video(Thread):
         else:
             return self.icons.pop(0)
 
+    def configlogo(self, height, width):
+        self.ix = width/2 - config.LOGO_WIDTH/2
+        self.iy = height/2 - config.LOGO_HEIGHT/2
+
     @staticmethod
     def get_fps(cap):
         (major_ver, minor_ver, subminor_ver) = (cv2.__version__).split('.')
@@ -146,39 +226,39 @@ class Video(Thread):
     def show_frame_speed_wait(self, frame, fps):
         time.sleep(self.wait)
         start = time.time()
-        Video.show_frame(self.tmp, frame, self.get_icon(),
-                         self.tiv, self.ix, self.iy)
+        VideoManager.show_frame(self.tmp, frame, self.get_icon(),
+                                self.tiv, self.ix, self.iy)
         end = time.time()
         elapse = end - start
 
         self.speed = ceil(fps * elapse)
-        # 0.8 is experimental but it works well
-        self.wait = (self.speed/fps - elapse)*0.8
+        # 0.85 is experimental but it works well
+        self.wait = (self.speed/fps - elapse)*0.85
+        return True
 
     def run(self):
-        cap = cv2.VideoCapture(self.vidname)
         self.clear()
-        ret, frame = cap.read()
-        height, weight, _ = frame.shape
-        self.ix = weight/2 - config.LOGO_WIDTH/2
-        self.iy = height/2 - config.LOGO_HEIGHT/2
-        fps = Video.get_fps(cap)
-
-        self.show_frame_speed_wait(frame, fps)
-
+        if os.path.isdir(self.vidname):
+            vid = VideoImages(self.vidname)
+        else:
+            vid = VideoMP4(self.vidname)
+        height, width, fps, = vid.init_frame()
+        self.configlogo(height, width)
+        self.show_frame_speed_wait(vid.get_frame(), fps)
         i = 0
-        while(not menu.needToStop() and cap.isOpened()):
+        while(not menu.needToStop() and vid.has_frame()):
             if menu.isPlaying():
-                if not ret:
-                    menu.stop()
-                    break
+                vid.load_frame()
                 i += 1
                 if i % (self.speed*self.fast) == 0:
-                    self.show_frame_speed_wait(frame, fps)
-                ret, frame = cap.read()
+                    if vid.has_frame():
+                        self.show_frame_speed_wait(vid.get_frame(), fps)
+                    else:
+                        break
             elif menu.isPausing():
                 self.set_icon("pause", num=1)
-                self.show_frame_speed_wait(frame, fps)
+                self.show_frame_speed_wait(vid.get_frame(), fps)
+        menu.stop()
 
 
 def readchar():
@@ -192,7 +272,7 @@ def readchar():
     return ch
 
 
-class Controller():
+class KeyboardController():
     """Control the video."""
 
     def __init__(self, menu, vid):
@@ -245,10 +325,10 @@ if __name__ == '__main__':
         raise IOError('Please put a video file')
 
     menu = Menu()
-    vid = Video(args.vid, args.tiv, args.tmp, menu)
+    vid = VideoManager(args.vid, args.tiv, args.tmp, menu)
     vid.start()
 
-    ctrl = Controller(menu, vid)
+    ctrl = KeyboardController(menu, vid)
     ctrl.run()
 
     vid.join()
