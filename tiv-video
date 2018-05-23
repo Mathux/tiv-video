@@ -8,8 +8,12 @@ from threading import Thread
 import tty
 import termios
 import time
-from paste import paste_icon
 from math import ceil
+
+PROGRAM_PATH = '/'.join(os.path.join(sys.argv[0].split('/')[:-1]))
+sys.path.insert(0, PROGRAM_PATH)
+
+import paste
 import config
 
 
@@ -193,7 +197,7 @@ class VideoManager(Thread):
     @staticmethod
     def show_frame(tmp, frame, icon, tiv, x, y):
         cv2.imwrite(tmp, frame)
-        paste_icon(tmp, icon, tmp, x, y)
+        paste.paste_icon(tmp, icon, tmp, x, y, PROGRAM_PATH)
         VideoManager.cmd_and_print(tiv, tmp)
 
     def set_icon(self, icon, num=5):
@@ -320,7 +324,7 @@ class KeyboardController():
 
 if __name__ == '__main__':
     args = parse_args()
-
+    print sys.argv[0]
     if not args.vid:
         raise IOError('Please put a video file')
 

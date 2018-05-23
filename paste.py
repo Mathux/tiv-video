@@ -1,5 +1,6 @@
 import cv2
 import argparse
+from os.path import join as osjoin
 
 
 CHOICE = ["play", "pause", "fast", "left", "right", "rewind"]
@@ -27,11 +28,11 @@ def parse_args():
     return args
 
 
-def paste_icon(image, icon, out, x=50, y=50):
+def paste_icon(image, icon, out, x=50, y=50, path='.'):
     if icon == -1:
         return
     lim = image
-    sim = DIC[icon]
+    sim = osjoin(path, DIC[icon])
     s_img = cv2.imread(sim, -1)
     l_img = cv2.imread(lim)
     x_offset, y_offset = x, y
