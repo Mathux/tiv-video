@@ -10,9 +10,11 @@ import termios
 import time
 from math import ceil
 
+# Lines to add the folder of tiv-video executable to the path
 PROGRAM_PATH = '/'.join(os.path.join(sys.argv[0].split('/')[:-1]))
 sys.path.insert(0, PROGRAM_PATH)
 
+# This enable to load theses libraries everywhere
 import paste
 import config
 
@@ -42,7 +44,6 @@ def parse_args():
     optional.add_argument('--fps', dest='fps',
                           help='FPS for folder with images, default: ' + str(config.FPS_IMAGES),
                           default=config.FPS_IMAGES)
-
     args = parser.parse_args()
     return args
 
@@ -87,10 +88,13 @@ class Video():
     def get_frame(self):
         pass
 
-    def load(self):
+    def load_next_frame(self):
         pass
 
     def has_frame(self):
+        pass
+
+    def isImages(self):
         pass
 
 
@@ -110,13 +114,16 @@ class VideoMP4(Video):
     def get_frame(self):
         return self.actualframe
 
-    def load_frame(self):
+    def load_next_frame(self):
         if self.ret:
             self.ret, self.actualframe = self.cap.read()
         return self.ret
 
     def has_frame(self):
         return self.ret
+
+    def isImages(self):
+        return False
 
 
 class VideoImages(Video):
@@ -137,7 +144,7 @@ class VideoImages(Video):
     def get_frame(self):
         return self.actualframe
 
-    def load_frame(self):
+    def load_next_frame(self):
         if self.ind < self.numframe - 1:
             self.ind += 1
             self.actualframe = cv2.imread(self.frames[self.ind])
@@ -145,8 +152,19 @@ class VideoImages(Video):
         else:
             return False
 
+    def load_previous_frame(self):
+        if self.ind > 0:
+            self.ind -= 1
+            self.actualframe = cv2.imread(self.frames[self.ind])
+            return True
+        else:
+            return False
+
     def has_frame(self):
         return self.ind < self.numframe
+
+    def isImages(self):
+        return True
 
 
 class VideoManager(Thread):
@@ -163,6 +181,7 @@ class VideoManager(Thread):
         self.iy = 0
         self.fast = 1
         self.wait = 0
+        self.rewind = False
 
     @staticmethod
     def pint(s):
@@ -252,7 +271,10 @@ class VideoManager(Thread):
         i = 0
         while(not menu.needToStop() and vid.has_frame()):
             if menu.isPlaying():
-                vid.load_frame()
+                if self.rewind and vid.isImages():
+                    vid.load_previous_frame()
+                else:
+                    vid.load_next_frame()
                 i += 1
                 if i % (self.speed*self.fast) == 0:
                     if vid.has_frame():
@@ -302,12 +324,28 @@ class KeyboardController():
                 return self.process_char(first)
 
             letter = readchar()
+            # Right key
             if letter == 'C':
+                if self.vid.rewind:
+                    self.vid.rewind = False
+                    self.vid.fast = 1
+                else:
+                    self.vid.fast *= 2
                 self.vid.set_icon("fast", num=2)
-                self.vid.fast *= 2
-            elif letter == 'D':
-                self.vid.set_icon("rewind", num=2)
+
+            # Up key
+            elif letter == 'A':
+                self.vid.set_icon("play", num=2)
                 self.vid.fast = 1
+                self.vid.rewind = False
+            # Left key
+            elif letter == 'D':
+                if self.vid.rewind:
+                    self.vid.fast *= 2
+                else:
+                    self.vid.rewind = True
+                    self.vid.fast = 1
+                self.vid.set_icon("rewind", num=2)
             else:
                 return True
 
